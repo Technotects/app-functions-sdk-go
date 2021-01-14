@@ -18,9 +18,12 @@ package appsdk
 
 import (
 	"fmt"
+	"github.com/edgexfoundry/go-mod-messaging/messaging"
+	"github.com/edgexfoundry/go-mod-messaging/pkg/types"
 	"net/http"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/gorilla/mux"
@@ -478,4 +481,20 @@ func TestMakeItStop(t *testing.T) {
 
 	sdk.stop = nil
 	sdk.MakeItStop() //should avoid nil pointer
+}
+
+func TestRegisterCustomMessageClientFactory(t *testing.T) {
+	name := "cUsToM cLiEnT"
+
+	builder := func(c types.MessageBusConfig) (messaging.MessageClient, error) {
+		return nil, nil
+	}
+
+	sdk := AppFunctionsSDK{}
+	sdk.RegisterCustomMessageClientFactory(name, builder)
+
+	require.Equal(t, len(sdk.customMessageClientFactories), 1, "provided function should be registered")
+
+	registeredBuilder := sdk.customMessageClientFactories[strings.ToUpper(name)]
+	require.NotNil(t, registeredBuilder, "provided function should be registered with uppercase name")
 }

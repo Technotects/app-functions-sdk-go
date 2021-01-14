@@ -69,11 +69,57 @@ func TestInitialize(t *testing.T) {
 	goRuntime := &runtime.GolangRuntime{}
 
 	trigger := Trigger{Configuration: &config, Runtime: goRuntime, EdgeXClients: common.EdgeXClients{LoggingClient: logClient}}
-	_, _ = trigger.Initialize(&sync.WaitGroup{}, context.Background(), nil)
+	_, err := trigger.Initialize(&sync.WaitGroup{}, context.Background(), nil)
+	require.NoError(t, err)
 	assert.NotNil(t, trigger.client, "Expected client to be set")
 	assert.Equal(t, 1, len(trigger.topics))
 	assert.Equal(t, "events", trigger.topics[0].Topic)
 	assert.NotNil(t, trigger.topics[0].Messages)
+}
+
+func TestInitialize_CustomFactory(t *testing.T) {
+	config := common.ConfigurationStruct{
+		Binding: common.BindingInfo{
+			Type:            "meSsaGebus",
+			PublishTopic:    "publish",
+			SubscribeTopics: "events",
+		},
+		MessageBus: types.MessageBusConfig{
+			Type: "custom",
+		},
+	}
+
+	ct, err := messaging.NewMessageClient(types.MessageBusConfig{
+		Type: "zero",
+		PublishHost: types.HostInfo{
+			Host:     "*",
+			Port:     5901,
+			Protocol: "tcp",
+		},
+		SubscribeHost: types.HostInfo{
+			Host:     "localhost",
+			Port:     5903,
+			Protocol: "tcp",
+		},
+	})
+
+	require.NoError(t, err)
+
+	goRuntime := &runtime.GolangRuntime{}
+
+	trigger := Trigger{Configuration: &config, Runtime: goRuntime, EdgeXClients: common.EdgeXClients{LoggingClient: logClient}, CustomClientFactories: map[string]func(config types.MessageBusConfig) (messaging.MessageClient, error){
+		"CUSTOM": func(busConfig types.MessageBusConfig) (messaging.MessageClient, error) {
+			return ct, nil
+		},
+	}}
+
+	_, err = trigger.Initialize(&sync.WaitGroup{}, context.Background(), nil)
+	require.NoError(t, err)
+	assert.NotNil(t, trigger.client, "Expected client to be set")
+	assert.Equal(t, 1, len(trigger.topics))
+	assert.Equal(t, "events", trigger.topics[0].Topic)
+	assert.NotNil(t, trigger.topics[0].Messages)
+	assert.Equal(t, ct, trigger.client)
 }
 
 func TestInitializeBadConfiguration(t *testing.T) {

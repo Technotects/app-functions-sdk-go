@@ -107,26 +107,27 @@ type AppFunctionsSDK struct {
 	// It is highly recommend that the clients are verified to not be nil before use.
 	EdgexClients common.EdgeXClients
 	// RegistryClient is the client used by service to communicate with service registry.
-	RegistryClient            registry.Client
-	transforms                []appcontext.AppFunction
-	skipVersionCheck          bool
-	usingConfigurablePipeline bool
-	httpErrors                chan error
-	runtime                   *runtime.GolangRuntime
-	webserver                 *webserver.WebServer
-	config                    *common.ConfigurationStruct
-	storeClient               interfaces.StoreClient
-	secretProvider            bootstrapInterfaces.SecretProvider
-	storeForwardWg            *sync.WaitGroup
-	storeForwardCancelCtx     context.CancelFunc
-	appWg                     *sync.WaitGroup
-	appCtx                    context.Context
-	appCancelCtx              context.CancelFunc
-	deferredFunctions         []bootstrap.Deferred
-	serviceKeyOverride        string
-	backgroundChannel         <-chan types.MessageEnvelope
-	customTriggerFactories    map[string]func(sdk *AppFunctionsSDK) (Trigger, error)
-	stop                      context.CancelFunc
+	RegistryClient               registry.Client
+	transforms                   []appcontext.AppFunction
+	skipVersionCheck             bool
+	usingConfigurablePipeline    bool
+	httpErrors                   chan error
+	runtime                      *runtime.GolangRuntime
+	webserver                    *webserver.WebServer
+	config                       *common.ConfigurationStruct
+	storeClient                  interfaces.StoreClient
+	secretProvider               bootstrapInterfaces.SecretProvider
+	storeForwardWg               *sync.WaitGroup
+	storeForwardCancelCtx        context.CancelFunc
+	appWg                        *sync.WaitGroup
+	appCtx                       context.Context
+	appCancelCtx                 context.CancelFunc
+	deferredFunctions            []bootstrap.Deferred
+	serviceKeyOverride           string
+	backgroundChannel            <-chan types.MessageEnvelope
+	customTriggerFactories       map[string]func(sdk *AppFunctionsSDK) (Trigger, error)
+	customMessageClientFactories map[string]func(types.MessageBusConfig) (messaging.MessageClient, error)
+	stop                         context.CancelFunc
 }
 
 // AddRoute allows you to leverage the existing webserver to add routes.
@@ -471,6 +472,15 @@ func (sdk *AppFunctionsSDK) GetSecrets(path string, keys ...string) (map[string]
 // secrets map specifies the "key": "value" pairs of secrets to store
 func (sdk *AppFunctionsSDK) StoreSecrets(path string, secrets map[string]string) error {
 	return sdk.secretProvider.StoreSecrets(path, secrets)
+}
+
+// RegisterCustomMessageClientFactory allows registering a custom function to build messaging.MessageClient
+// implementations for use by the MessageBus trigger when provided name is encountered in configuration.
+func (s *AppFunctionsSDK) RegisterCustomMessageClientFactory(name string, factory func(busConfig types.MessageBusConfig) (messaging.MessageClient, error)) {
+	if s.customMessageClientFactories == nil {
+		s.customMessageClientFactories = make(map[string]func(busConfig types.MessageBusConfig) (messaging.MessageClient, error))
+	}
+	s.customMessageClientFactories[strings.ToUpper(name)] = factory
 }
 
 func (sdk *AppFunctionsSDK) addContext(next func(nethttp.ResponseWriter, *nethttp.Request)) func(nethttp.ResponseWriter, *nethttp.Request) {

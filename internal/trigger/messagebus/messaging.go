@@ -38,11 +38,12 @@ import (
 
 // Trigger implements Trigger to support MessageBusData
 type Trigger struct {
-	Configuration *common.ConfigurationStruct
-	Runtime       *runtime.GolangRuntime
-	client        messaging.MessageClient
-	topics        []types.TopicChannel
-	EdgeXClients  common.EdgeXClients
+	Configuration         *common.ConfigurationStruct
+	Runtime               *runtime.GolangRuntime
+	client                messaging.MessageClient
+	topics                []types.TopicChannel
+	EdgeXClients          common.EdgeXClients
+	CustomClientFactories map[string]func(config types.MessageBusConfig) (messaging.MessageClient, error)
 }
 
 // Initialize ...
@@ -50,9 +51,16 @@ func (trigger *Trigger) Initialize(appWg *sync.WaitGroup, appCtx context.Context
 	var err error
 	lc := trigger.EdgeXClients.LoggingClient
 
-	lc.Infof("Initializing Message Bus Trigger for '%s'", trigger.Configuration.MessageBus.Type)
+	busType := strings.ToUpper(trigger.Configuration.MessageBus.Type)
 
-	trigger.client, err = messaging.NewMessageClient(trigger.Configuration.MessageBus)
+	lc.Infof("Initializing Message Bus Trigger for '%s'", busType)
+
+	if factory, found := trigger.CustomClientFactories[busType]; found {
+		trigger.client, err = factory(trigger.Configuration.MessageBus)
+	} else {
+		trigger.client, err = messaging.NewMessageClient(trigger.Configuration.MessageBus)
+	}
+
 	if err != nil {
 		return nil, err
 	}
